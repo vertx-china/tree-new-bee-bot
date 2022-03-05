@@ -1,0 +1,6 @@
+{
+  "chatId": 555555555555,
+  "botToken": "44444444444:xxxxxxxxxxxxxxx 请替换为bot的token",
+  "treeNewBee.server": "请替换为 TreeNewBee 服务地址",
+  "treeNewBee.port": 32167
+}
