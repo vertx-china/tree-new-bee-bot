@@ -49,7 +49,7 @@ public class TgBotServerVerticle extends AbstractVerticle {
   private void createTreeNewBeeClient(Long chatId, String tnbServer, Integer tnbPort, TelegramBot bot) {
     vertx.createNetClient().connect(tnbPort, tnbServer).compose(socket -> {
       //上传昵称
-      socket.write(new JsonObject().put("nickname", "TreeNewBeeForwardBot").toString() + "\r\n");
+      socket.write(new JsonObject().put("nickname", "Tg群转发Bot").toString() + "\r\n");
 
       // telegram -> treeNewBee
       bot.setUpdatesListener(updates -> {
@@ -57,7 +57,7 @@ public class TgBotServerVerticle extends AbstractVerticle {
           Message message = update.message();
           if (message != null) {
             User from = message.from();
-            String msgPrefix = "Telegram用户 " + from.lastName() + " " + from.firstName();
+            String msgPrefix = "Tg的 " + from.lastName() + " " + from.firstName();
             if (message.text() != null) {
               socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + message.text()).toString() + "\r\n");
             } else if (message.sticker() != null) {
@@ -86,7 +86,7 @@ public class TgBotServerVerticle extends AbstractVerticle {
           try {
             var messageJson = new JsonObject(json);
             if (messageJson.containsKey("message")) {
-              String content = "尊贵的 *树新蜂* 用户 *" + messageJson.getString("nickname") + "* 说: \n" + messageJson.getString("message");
+              String content = "树新蜂的 *" + messageJson.getString("nickname") + "* 说: \n" + messageJson.getString("message");
               bot.execute(new SendMessage(chatId, content).parseMode(ParseMode.Markdown));
             }
           } catch (Exception e) {
