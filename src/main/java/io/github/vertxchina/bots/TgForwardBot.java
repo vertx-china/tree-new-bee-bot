@@ -16,6 +16,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * @author Leibniz on 2022/03/6 11:13 AM
@@ -52,25 +53,25 @@ public class TgForwardBot implements ForwardBot {
           String nickName = from.lastName() + " " + from.firstName();
           String msgPrefix = "Tg的 " + nickName;
           final String msgText;
+          String picUrl = null;
           if (message.text() != null) {
             msgText = message.text();
           } else if (message.sticker() != null) {
             //TODO
             msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
-            //TODO
+            String tmpText;
+            String caption = Optional.ofNullable(message.caption()).map(t -> "并留言: " + t).orElse("");
             try {
               String fileId = message.photo()[message.photo().length - 1].fileId();
               GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
               byte[] photoBytes = bot.getFileContent(getFileResponse.file());
-              String url = pictureBed.upload(photoBytes);
-              //目前 TreeNewBee 只支持 纯 图片url 的图片消息
-              socket.write(new JsonObject().put("message", url) + "\r\n");
-              continue;
-//              tmpMsgText = message.caption() + "\n" + url;
+              picUrl = pictureBed.upload(photoBytes);
+              tmpText = "[[发送了一张瑟图" + caption + ",见下条消息]";
             } catch (Exception e) {
-              msgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
+              tmpText = "[发送了一张瑟图" + caption + ",暂不支持转发]";
             }
+            msgText = tmpText;
           } else if (message.animation() != null) {
             //TODO
             msgText = "[发送了一张GIF瑟瑟动图]";
@@ -80,6 +81,10 @@ public class TgForwardBot implements ForwardBot {
           }
           if (msgText != null) {
             socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + msgText) + "\r\n");
+            if (picUrl != null) {
+              //目前 TreeNewBee 只支持 纯 图片url 的图片消息
+              socket.write(new JsonObject().put("message", url) + "\r\n");
+            }
             bots.forEach(bot -> {
               if (bot != this) {
                 try {
