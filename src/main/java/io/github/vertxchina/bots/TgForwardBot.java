@@ -61,15 +61,15 @@ public class TgForwardBot implements ForwardBot {
             msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
             String tmpText;
-            String caption = Optional.ofNullable(message.caption()).map(t -> "并留言: " + t).orElse("");
+            String caption = Optional.ofNullable(message.caption()).orElse("");
             try {
               String fileId = message.photo()[message.photo().length - 1].fileId();
               GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
               byte[] photoBytes = bot.getFileContent(getFileResponse.file());
               picUrl = pictureBed.upload(photoBytes);
-              tmpText = "[[发送了一张瑟图" + caption + ",见下条消息]";
+              tmpText = caption + " [发送了一张瑟图,见下条消息]";
             } catch (Exception e) {
-              tmpText = "[发送了一张瑟图" + caption + ",暂不支持转发]";
+              tmpText = caption + " [发送了一张瑟图,暂不支持转发]";
             }
             msgText = tmpText;
           } else if (message.animation() != null) {
