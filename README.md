@@ -22,7 +22,8 @@
   "telegram.chatId": 555555555555, /*请替换为 Telegram 群ID*/
   "telegram.botToken": "44444444444:xxxxxxxxxxxxxxx 请替换为bot的token",
   "treeNewBee.server": "请替换为 TreeNewBee 服务地址",
-  "treeNewBee.port": 32167 /*请替换为 TreeNewBee 端口*/
+  "treeNewBee.port": 32167, /*请替换为 TreeNewBee 端口*/
+  "treeNewBee.nickname": "昵称，非必填，默认 '3群转发Bot' "
 }
 ```
 3. 启动 `java -jar target/tree-new-bee-bot-***.jar -conf config.json`

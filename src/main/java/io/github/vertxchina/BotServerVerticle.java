@@ -28,18 +28,19 @@ public class BotServerVerticle extends AbstractVerticle {
     if (tnbPort == null) {
       throw new IllegalArgumentException("config: treeNewBee.port is empty!!!");
     }
+    var tnbNickname = config().getString("treeNewBee.nickname", "3群转发Bot");
     System.out.println("BotServerVerticle config check pass...");
 
-    List<ForwardBot> bots = ForwardBot.lookupAndInitAllBots(config());
-    connectTreeNewBee(tnbServer, tnbPort, bots);
+    List<ForwardBot> bots = ForwardBot.lookupAndInitAllBots(config(), vertx);
+    connectTreeNewBee(tnbServer, tnbPort, tnbNickname, bots);
   }
 
-  private void connectTreeNewBee(String tnbServer, Integer tnbPort, List<ForwardBot> bots) {
+  private void connectTreeNewBee(String tnbServer, Integer tnbPort, String nickname, List<ForwardBot> bots) {
     vertx.createNetClient()
       .connect(tnbPort, tnbServer)
       .compose(socket -> {
         //上传昵称
-        socket.write(new JsonObject().put("nickname", "3群转发Bot").toString() + "\r\n");
+        socket.write(new JsonObject().put("nickname", nickname).toString() + "\r\n");
 
         //通知bot已连接TreeNewBee
         bots.forEach(bot -> bot.registerTreeNewBeeSocket(socket, bots));
@@ -71,7 +72,7 @@ public class BotServerVerticle extends AbstractVerticle {
         //Socket断开重连
         socket.closeHandler(v -> vertx.setTimer(5000L, tid -> {
           System.out.println("TreeNewBee socket is closed, trying to reconnect...");
-          connectTreeNewBee(tnbServer, tnbPort, bots);
+          connectTreeNewBee(tnbServer, tnbPort, nickname, bots);
         }));
         return Future.succeededFuture();
       })

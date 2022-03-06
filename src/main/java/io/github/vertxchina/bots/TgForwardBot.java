@@ -7,8 +7,11 @@ import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
 import com.pengrad.telegrambot.model.request.ParseMode;
+import com.pengrad.telegrambot.request.GetFile;
 import com.pengrad.telegrambot.request.SendMessage;
+import com.pengrad.telegrambot.response.GetFileResponse;
 import io.netty.util.internal.StringUtil;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
@@ -20,9 +23,10 @@ import java.util.List;
 public class TgForwardBot implements ForwardBot {
   private TelegramBot bot;
   private Long tgChatId;
+  private PictureBed pictureBed;
 
   @Override
-  public void init(JsonObject config) throws IllegalArgumentException {
+  public void init(JsonObject config, Vertx vertx) throws IllegalArgumentException {
     //config check
     String tgBotToken = config.getString("telegram.botToken");
     if (StringUtil.isNullOrEmpty(tgBotToken)) {
@@ -34,6 +38,7 @@ public class TgForwardBot implements ForwardBot {
     }
 
     this.bot = new TelegramBot(tgBotToken);
+    this.pictureBed = new TelegraphPictureBed(vertx);
   }
 
   @Override
@@ -46,7 +51,7 @@ public class TgForwardBot implements ForwardBot {
           User from = message.from();
           String nickName = from.lastName() + " " + from.firstName();
           String msgPrefix = "Tg的 " + nickName;
-          String msgText;
+          final String msgText;
           if (message.text() != null) {
             msgText = message.text();
           } else if (message.sticker() != null) {
@@ -54,7 +59,17 @@ public class TgForwardBot implements ForwardBot {
             msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
             //TODO
-            msgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
+            String tmpMsgText;
+            try {
+              String fileId = message.photo()[message.photo().length - 1].fileId();
+              GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
+              byte[] photoBytes = bot.getFileContent(getFileResponse.file());
+              String url = pictureBed.upload(photoBytes);
+              tmpMsgText = message.caption() + "\n" + url;
+            } catch (Exception e) {
+              tmpMsgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
+            }
+            msgText = tmpMsgText;
           } else if (message.animation() != null) {
             //TODO
             msgText = "[发送了一张GIF瑟瑟动图]";
