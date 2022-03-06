@@ -59,17 +59,18 @@ public class TgForwardBot implements ForwardBot {
             msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
             //TODO
-            String tmpMsgText;
             try {
               String fileId = message.photo()[message.photo().length - 1].fileId();
               GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
               byte[] photoBytes = bot.getFileContent(getFileResponse.file());
               String url = pictureBed.upload(photoBytes);
-              tmpMsgText = message.caption() + "\n" + url;
+              //目前 TreeNewBee 只支持 纯 图片url 的图片消息
+              socket.write(new JsonObject().put("message", url) + "\r\n");
+              continue;
+//              tmpMsgText = message.caption() + "\n" + url;
             } catch (Exception e) {
-              tmpMsgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
+              msgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
             }
-            msgText = tmpMsgText;
           } else if (message.animation() != null) {
             //TODO
             msgText = "[发送了一张GIF瑟瑟动图]";
