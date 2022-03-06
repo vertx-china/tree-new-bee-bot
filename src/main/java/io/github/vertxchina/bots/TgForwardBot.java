@@ -12,6 +12,8 @@ import io.netty.util.internal.StringUtil;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
+import java.util.List;
+
 /**
  * @author Leibniz on 2022/03/6 11:13 AM
  */
@@ -35,27 +37,42 @@ public class TgForwardBot implements ForwardBot {
   }
 
   @Override
-  public void registerTreeNewBeeSocket(NetSocket socket) {
+  public void registerTreeNewBeeSocket(NetSocket socket, List<ForwardBot> bots) {
     // telegram -> treeNewBee
     this.bot.setUpdatesListener(updates -> {
       for (Update update : updates) {
         Message message = update.message();
         if (message != null) {
           User from = message.from();
-          String msgPrefix = "Tg的 " + from.lastName() + " " + from.firstName();
+          String nickName = from.lastName() + " " + from.firstName();
+          String msgPrefix = "Tg的 " + nickName;
+          String msgText;
           if (message.text() != null) {
-            socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + message.text()).toString() + "\r\n");
+            msgText = message.text();
           } else if (message.sticker() != null) {
             //TODO
-            socket.write(new JsonObject().put("message", msgPrefix + " \n" + "发送了一个表情,暂不支持转发").toString() + "\r\n");
+            msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
             //TODO
-            socket.write(new JsonObject().put("message", msgPrefix + " \n" + "发送了一张瑟图并留言: " + message.caption() + ",特别特别瑟瑟,暂不支持转发").toString() + "\r\n");
+            msgText = "[发送了一张瑟图并留言: " + message.caption() + ",暂不支持转发]";
           } else if (message.animation() != null) {
             //TODO
-            socket.write(new JsonObject().put("message", msgPrefix + " \n" + "发送了一张GIF瑟瑟动图").toString() + "\r\n");
+            msgText = "[发送了一张GIF瑟瑟动图]";
           } else {
             System.out.println("==>暂不支持的消息: " + new Gson().toJson(message));
+            msgText = null;
+          }
+          if (msgText != null) {
+            socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + msgText) + "\r\n");
+            bots.forEach(bot -> {
+              if (bot != this) {
+                try {
+                  bot.sendMessage(new JsonObject().put("nickname", nickName).put("message", msgText), "Tg");
+                } catch (Exception e) {
+                  e.printStackTrace();
+                }
+              }
+            });
           }
         }
       }
@@ -64,8 +81,8 @@ public class TgForwardBot implements ForwardBot {
   }
 
   @Override
-  public void sendMessage(JsonObject messageJson) throws Exception {
-    String content = "树新蜂的 *" + messageJson.getString("nickname") + "* 说: \n" + messageJson.getString("message");
+  public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
+    String content = msgSource + "的 *" + messageJson.getString("nickname") + "* 说: \n" + messageJson.getString("message");
     bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
   }
 }

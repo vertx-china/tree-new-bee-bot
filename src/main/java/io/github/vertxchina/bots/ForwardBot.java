@@ -1,7 +1,6 @@
 package io.github.vertxchina.bots;
 
 import io.github.vertxchina.ClassUtil;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
@@ -40,11 +39,19 @@ public interface ForwardBot {
 
   /**
    * 建立与 TreeNewBee 服务器的连接后调用
-   * 建议实现类在这个方法里注册接收到自己方（如Telegram）消息时转发到 TreeNewBee 的操作
+   * 建议实现类在这个方法里注册接收到自己方（如Telegram）消息时转发到 TreeNewBee 及 其他bot 的操作
    *
    * @param socket 与 TreeNewBee 服务器的连接 Socket
+   * @param bots 所有bot，用于调用 sendMessage() 转发其他平台
    */
-  void registerTreeNewBeeSocket(NetSocket socket);
+  void registerTreeNewBeeSocket(NetSocket socket, List<ForwardBot> bots);
 
-  void sendMessage(JsonObject messageJson) throws Exception;
+  /**
+   * 需要往自身平台转发的消息
+   *
+   * @param messageJson 消息Json，包含 nickname message
+   * @param msgSource   消息来源平台
+   * @throws Exception 发送消息时的IO异常之类
+   */
+  void sendMessage(JsonObject messageJson, String msgSource) throws Exception;
 }

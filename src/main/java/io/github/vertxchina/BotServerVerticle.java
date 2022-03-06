@@ -31,20 +31,23 @@ public class BotServerVerticle extends AbstractVerticle {
     System.out.println("BotServerVerticle config check pass...");
 
     List<ForwardBot> bots = ForwardBot.lookupAndInitAllBots(config());
-    createTreeNewBeeClient(tnbServer, tnbPort, bots);
+    connectTreeNewBee(tnbServer, tnbPort, bots);
   }
 
-  private void createTreeNewBeeClient(String tnbServer, Integer tnbPort, List<ForwardBot> bots) {
-    vertx.createNetClient().connect(tnbPort, tnbServer).compose(socket -> {
+  private void connectTreeNewBee(String tnbServer, Integer tnbPort, List<ForwardBot> bots) {
+    vertx.createNetClient()
+      .connect(tnbPort, tnbServer)
+      .compose(socket -> {
         //上传昵称
-        socket.write(new JsonObject().put("nickname", "Tg群转发Bot").toString() + "\r\n");
+        socket.write(new JsonObject().put("nickname", "3群转发Bot").toString() + "\r\n");
 
         //通知bot已连接TreeNewBee
-        bots.forEach(bot -> bot.registerTreeNewBeeSocket(socket));
+        bots.forEach(bot -> bot.registerTreeNewBeeSocket(socket, bots));
 
         //第一次连接后会发一堆历史消息，现在没区分，不友好 所以等5秒后再开始处理
         vertx.setTimer(5000L, tid -> {
           System.out.println("BotServerVerticle start to receive TreeNewBee's messages...");
+          //来自 TreeNewBee 的消息转发各个平台Bot
           socket.handler(RecordParser.newDelimited("\r\n", buffer -> {
             String json = buffer.toString();
             try {
@@ -53,7 +56,7 @@ public class BotServerVerticle extends AbstractVerticle {
                 //通知 Bot 转发到自己平台
                 bots.forEach(bot -> {
                   try {
-                    bot.sendMessage(messageJson);
+                    bot.sendMessage(messageJson, "树新蜂");
                   } catch (Exception e) {
                     e.printStackTrace();
                   }
@@ -65,10 +68,10 @@ public class BotServerVerticle extends AbstractVerticle {
           }).maxRecordSize(1024 * 64));
         });
 
-        //断开重连
+        //Socket断开重连
         socket.closeHandler(v -> vertx.setTimer(5000L, tid -> {
           System.out.println("TreeNewBee socket is closed, trying to reconnect...");
-          createTreeNewBeeClient(tnbServer, tnbPort, bots);
+          connectTreeNewBee(tnbServer, tnbPort, bots);
         }));
         return Future.succeededFuture();
       })
