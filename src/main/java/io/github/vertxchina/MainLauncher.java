@@ -10,8 +10,8 @@ public class MainLauncher extends AbstractVerticle {
   @Override
   public void start(Promise<Void> startPromise) {
     System.out.println("Starting deploy verticle(s)...");
-    vertx.deployVerticle(TgBotServerVerticle.class.getName(), new DeploymentOptions().setConfig(config()))
-      .onSuccess(id -> System.out.println("deploy " + TgBotServerVerticle.class.getSimpleName() + " success!"))
+    vertx.deployVerticle(BotServerVerticle.class.getName(), new DeploymentOptions().setConfig(config()))
+      .onSuccess(id -> System.out.println("deploy " + BotServerVerticle.class.getSimpleName() + " success!"))
       .onFailure(startPromise::fail);
   }
 

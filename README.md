@@ -1,4 +1,4 @@
-# 转发 TreeNewBee 消息的Telegram Bot
+# 转发 TreeNewBee 消息的Telegram(或其他app) Bot
 
 ## Feature
 - 转发 TreeNewBee 消息到 Telegram 群
@@ -19,10 +19,10 @@
 2. 编辑一个 `config.json` 配置文件:
 ```json
 {
-  "chatId": 555555555555, /*请替换为 Telegram 群ID*/
-  "botToken": "44444444444:xxxxxxxxxxxxxxx 请替换为bot的token",
+  "telegram.chatId": 555555555555, /*请替换为 Telegram 群ID*/
+  "telegram.botToken": "44444444444:xxxxxxxxxxxxxxx 请替换为bot的token",
   "treeNewBee.server": "请替换为 TreeNewBee 服务地址",
   "treeNewBee.port": 32167 /*请替换为 TreeNewBee 端口*/
 }
 ```
-3. 启动 `java -jar target/tree-new-bee-telegram-bot-***.jar -conf config.json`
+3. 启动 `java -jar target/tree-new-bee-bot-***.jar -conf config.json`
