@@ -83,7 +83,7 @@ public class TgForwardBot implements ForwardBot {
             socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + msgText) + "\r\n");
             if (picUrl != null) {
               //目前 TreeNewBee 只支持 纯 图片url 的图片消息
-              socket.write(new JsonObject().put("message", url) + "\r\n");
+              socket.write(new JsonObject().put("message", picUrl) + "\r\n");
             }
             bots.forEach(bot -> {
               if (bot != this) {
