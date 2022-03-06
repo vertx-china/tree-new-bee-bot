@@ -63,6 +63,7 @@ public class ClassUtil {
     String path = packageName.replace(".", "/");
     Enumeration<URL> enumeration = classLoader.getResources(path);
     List<String> classNames = getClassNames(enumeration, packageName);
+    System.out.println(classNames);
 
     ArrayList<Class<T>> classes = new ArrayList<>();
     for (int i = 0; i < classNames.size(); i++) {
@@ -120,10 +121,12 @@ public class ClassUtil {
         String childFilePath = childFile.getPath();
         if (childFilePath.endsWith(".class")) {
           int packageIndex = childFilePath.indexOf(path);
-          String className = childFilePath.substring(packageIndex)
-            .replace("/", ".")
-            .replaceAll("\\.class$", "");
-          classNames.add(className);
+          if (packageIndex >= 0) {
+            String className = childFilePath.substring(packageIndex)
+              .replace("/", ".")
+              .replaceAll("\\.class$", "");
+            classNames.add(className);
+          }
         }
       }
     }
@@ -135,15 +138,23 @@ public class ClassUtil {
    * 从jar包中获取某路径下的所有类
    */
   public static List<String> getClassNameByJar(JarFile jarFile, String packageName) {
+    String path = packageName.replace(".", "/");
     List<String> classNames = new ArrayList<String>();
     Enumeration<JarEntry> entrys = jarFile.entries();
     while (entrys.hasMoreElements()) {
       JarEntry jarEntry = (JarEntry) entrys.nextElement();
       String entryName = jarEntry.getName();
       if(entryName.endsWith(".class")) {
-        String className = entryName.replace("/", ".");
+        int packageIndex = entryName.indexOf(path);
+        if (packageIndex >= 0) {
+          String className = entryName.substring(packageIndex)
+            .replace("/", ".")
+            .replaceAll("\\.class$", "");
+          classNames.add(className);
+        }
+        /*String className = entryName.replace("/", ".");
         className = className.substring(0, className.indexOf(".class"));
-        classNames.add(className);
+        classNames.add(className);*/
       }
 
     }

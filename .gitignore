@@ -9,3 +9,5 @@
 **/.project
 **/.DS_Store
 **/metastore_db/
+
+config.json
