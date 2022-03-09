@@ -17,6 +17,7 @@ import io.vertx.core.net.NetSocket;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * @author Leibniz on 2022/03/6 11:13 AM
@@ -103,7 +104,16 @@ public class TgForwardBot implements ForwardBot {
 
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
-    String content = msgSource + "的 *" + messageJson.getString("nickname") + "* 说: \n" + messageJson.getString("message");
-    bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+    String content = msgSource + "的 *" + messageJson.getString("nickname") + "* 说:  \n" + escapeUrl(messageJson.getString("message"));
+    var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+    if (!response.isOk()) {
+      System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+    }
+  }
+
+  private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
+
+  public static String escapeUrl(String message) {
+    return urlPattern.matcher(message).replaceAll("\\[$0\\]()");
   }
 }
