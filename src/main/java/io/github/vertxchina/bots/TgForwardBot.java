@@ -52,7 +52,6 @@ public class TgForwardBot implements ForwardBot {
         if (message != null) {
           User from = message.from();
           String nickName = from.lastName() + " " + from.firstName();
-          String msgPrefix = "Tg的 " + nickName;
           final String msgText;
           String picUrl = null;
           if (message.text() != null) {
@@ -67,8 +66,13 @@ public class TgForwardBot implements ForwardBot {
               String fileId = message.photo()[message.photo().length - 1].fileId();
               GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
               byte[] photoBytes = bot.getFileContent(getFileResponse.file());
-              picUrl = pictureBed.upload(photoBytes);
-              tmpText = caption + " [发送了一张瑟图,见下条消息]";
+              String tmpPicUrl = pictureBed.upload(photoBytes);
+              if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
+                tmpText = tmpPicUrl;
+              } else {
+                tmpText = caption + " [发送了一张瑟图,见下条消息]";
+                picUrl = tmpPicUrl;
+              }
             } catch (Exception e) {
               tmpText = caption + " [发送了一张瑟图,暂不支持转发]";
             }
@@ -81,10 +85,10 @@ public class TgForwardBot implements ForwardBot {
             msgText = null;
           }
           if (msgText != null) {
-            socket.write(new JsonObject().put("message", msgPrefix + " 说: \n" + msgText) + "\r\n");
+            socket.write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", msgText) + "\r\n");
             if (picUrl != null) {
               //目前 TreeNewBee 只支持 纯 图片url 的图片消息
-              socket.write(new JsonObject().put("message", picUrl) + "\r\n");
+              socket.write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", picUrl) + "\r\n");
             }
             bots.forEach(bot -> {
               if (bot != this) {
