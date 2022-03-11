@@ -113,7 +113,7 @@ public class TgForwardBot implements ForwardBot {
     var user = messageJson.getString("nickname","匿名用户");
     if(!user.equals(previousUser)){
       previousUser = user;
-      String msgHead = msgSource + "的 *" + user + "* 说\n";
+      String msgHead = msgSource + "的 *" + user + "* 说";
       bot.execute(new SendMessage(tgChatId, msgHead));
     }
 
