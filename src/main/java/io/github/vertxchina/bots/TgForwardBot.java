@@ -114,7 +114,7 @@ public class TgForwardBot implements ForwardBot {
     var user = messageJson.getString("nickname","匿名用户");
     if(!user.equals(previousUser)){
       previousUser = user;
-      message +=msgSource + "的 *" + user + "* 说\n";
+      message +=msgSource + "的 *" + user + "* 说：\n";
     }
 
     if(messageJson.getValue("message") instanceof JsonObject jsonObject){
