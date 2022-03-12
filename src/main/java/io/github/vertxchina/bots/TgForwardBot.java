@@ -141,7 +141,7 @@ public class TgForwardBot implements ForwardBot {
   private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jepg|gif)");
 
   public static String escapeUrl(String message) {
-    return urlPattern.matcher(message).replaceAll("\\[$0\\]()");
+    return urlPattern.matcher(message).replaceAll("[$0]()");
   }
   public static String escapeImage(String message){
     return imgPattern.matcher(message).replaceAll("![$0]($0)");
