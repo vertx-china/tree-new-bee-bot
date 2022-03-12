@@ -14,7 +14,6 @@ import java.util.List;
  */
 public class BotServerVerticle extends AbstractVerticle {
 
-
   @Override
   public void start() throws Exception {
     System.out.println("BotServerVerticle starting...");

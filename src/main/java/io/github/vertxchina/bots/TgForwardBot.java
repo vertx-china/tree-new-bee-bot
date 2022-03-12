@@ -106,12 +106,34 @@ public class TgForwardBot implements ForwardBot {
     });
   }
 
+  String previousUser = "";
+
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
-    String content = msgSource + "的 *" + messageJson.getString("nickname") + "* 说:  \n" + escapeUrl(messageJson.getString("message"));
-    var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
-    if (!response.isOk()) {
-      System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+    var user = messageJson.getString("nickname","匿名用户");
+    if(!user.equals(previousUser)){
+      previousUser = user;
+      String msgHead = msgSource + "的 *" + user + "* 说";
+      bot.execute(new SendMessage(tgChatId, msgHead));
+    }
+
+    if(messageJson.getValue("message") instanceof JsonObject jsonObject){
+
+      //有content就用content，没有就找url，还没有就用空字符串
+      String content = jsonObject.containsKey("content") ?
+          escapeUrl(jsonObject.getString("content","")):
+          escapeUrl(jsonObject.getString("url",""));
+
+      var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+      if (!response.isOk()) {
+        System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+      }
+    }else{
+      String content = escapeUrl(messageJson.getString("message",""));
+      var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+      if (!response.isOk()) {
+        System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+      }
     }
   }
 
