@@ -110,36 +110,40 @@ public class TgForwardBot implements ForwardBot {
 
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
+    String message = "";//要被发送给电报的消息string
     var user = messageJson.getString("nickname","匿名用户");
     if(!user.equals(previousUser)){
       previousUser = user;
-      String msgHead = msgSource + "的 *" + user + "* 说";
-      bot.execute(new SendMessage(tgChatId, msgHead).parseMode(ParseMode.Markdown));
+      message +=msgSource + "的 *" + user + "* 说\n";
     }
 
     if(messageJson.getValue("message") instanceof JsonObject jsonObject){
 
       //有content就用content，没有就找url，还没有就用空字符串
-      String content = jsonObject.containsKey("content") ?
+      message += jsonObject.containsKey("content") ?
           escapeUrl(jsonObject.getString("content","")):
           escapeUrl(jsonObject.getString("url",""));
 
-      var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+      var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
-        System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+        System.out.println("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
       }
     }else{
-      String content = escapeUrl(messageJson.getString("message",""));
-      var response = bot.execute(new SendMessage(tgChatId, content).parseMode(ParseMode.Markdown));
+      message += escapeUrl(messageJson.getString("message",""));
+      var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
-        System.out.println("Send '" + content + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+        System.out.println("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
       }
     }
   }
 
   private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
+  private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jepg|gif)");
 
   public static String escapeUrl(String message) {
     return urlPattern.matcher(message).replaceAll("\\[$0\\]()");
+  }
+  public static String escapeImage(String message){
+    return imgPattern.matcher(message).replaceAll("![$0]($0)");
   }
 }
