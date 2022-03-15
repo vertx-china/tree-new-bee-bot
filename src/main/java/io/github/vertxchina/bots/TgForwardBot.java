@@ -17,12 +17,14 @@ import io.vertx.core.net.NetSocket;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
  * @author Leibniz on 2022/03/6 11:13 AM
  */
 public class TgForwardBot implements ForwardBot {
+  private final AtomicReference<NetSocket> socket = new AtomicReference<>();
   private TelegramBot bot;
   private Long tgChatId;
   private PictureBed pictureBed;
@@ -44,7 +46,7 @@ public class TgForwardBot implements ForwardBot {
   }
 
   @Override
-  public void registerTreeNewBeeSocket(NetSocket socket, List<ForwardBot> bots) {
+  public void registerOtherBots(List<ForwardBot> bots) {
     // telegram -> treeNewBee
     this.bot.setUpdatesListener(updates -> {
       for (Update update : updates) {
@@ -85,10 +87,10 @@ public class TgForwardBot implements ForwardBot {
             msgText = null;
           }
           if (msgText != null) {
-            socket.write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", msgText) + "\r\n");
+            socket.get().write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", msgText) + "\r\n");
             if (picUrl != null) {
               //目前 TreeNewBee 只支持 纯 图片url 的图片消息
-              socket.write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", picUrl) + "\r\n");
+              socket.get().write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", picUrl) + "\r\n");
             }
             bots.forEach(bot -> {
               if (bot != this) {
@@ -107,6 +109,12 @@ public class TgForwardBot implements ForwardBot {
   }
 
   String previousUser = "";
+
+  @Override
+  public void updateTnbSocket(NetSocket socket) {
+    NetSocket oldSocket = this.socket.get();
+    this.socket.compareAndSet(oldSocket, socket);
+  }
 
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {

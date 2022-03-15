@@ -42,10 +42,11 @@ public interface ForwardBot {
    * 建立与 TreeNewBee 服务器的连接后调用
    * 建议实现类在这个方法里注册接收到自己方（如Telegram）消息时转发到 TreeNewBee 及 其他bot 的操作
    *
-   * @param socket 与 TreeNewBee 服务器的连接 Socket
    * @param bots 所有bot，用于调用 sendMessage() 转发其他平台
    */
-  void registerTreeNewBeeSocket(NetSocket socket, List<ForwardBot> bots);
+  void registerOtherBots(List<ForwardBot> bots);
+
+  void updateTnbSocket(NetSocket socket);
 
   /**
    * 需要往自身平台转发的消息

@@ -31,6 +31,7 @@ public class BotServerVerticle extends AbstractVerticle {
     System.out.println("BotServerVerticle config check pass...");
 
     List<ForwardBot> bots = ForwardBot.lookupAndInitAllBots(config(), vertx);
+    bots.forEach(bot -> bot.registerOtherBots(bots));
     connectTreeNewBee(tnbServer, tnbPort, tnbNickname, bots);
   }
 
@@ -42,7 +43,7 @@ public class BotServerVerticle extends AbstractVerticle {
         socket.write(new JsonObject().put("nickname", nickname).toString() + "\r\n");
 
         //通知bot已连接TreeNewBee
-        bots.forEach(bot -> bot.registerTreeNewBeeSocket(socket, bots));
+        bots.forEach(bot -> bot.updateTnbSocket(socket));
 
         //第一次连接后会发一堆历史消息，现在没区分，不友好 所以等5秒后再开始处理
         vertx.setTimer(5000L, tid -> {
