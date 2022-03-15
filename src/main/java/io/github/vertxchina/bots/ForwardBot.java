@@ -2,6 +2,7 @@ package io.github.vertxchina.bots;
 
 import io.github.vertxchina.ClassUtil;
 import io.vertx.core.Vertx;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
@@ -20,7 +21,7 @@ public interface ForwardBot {
         try {
           ForwardBot bot = botClass.getDeclaredConstructor().newInstance();
           bot.init(config, vertx);
-          System.out.println(botClass.getSimpleName() + " init success!");
+          LoggerFactory.getLogger(ForwardBot.class).info(botClass.getSimpleName() + " init success!");
           bots.add(bot);
         } catch (Exception e) {
           e.printStackTrace();

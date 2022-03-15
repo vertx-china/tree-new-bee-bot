@@ -4,6 +4,8 @@ import io.github.vertxchina.bots.ForwardBot;
 import io.netty.util.internal.StringUtil;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.parsetools.RecordParser;
 
@@ -13,10 +15,11 @@ import java.util.List;
  * @author Leibniz on 2022/03/5 7:21 PM
  */
 public class BotServerVerticle extends AbstractVerticle {
+  Logger log = LoggerFactory.getLogger(BotServerVerticle.class);
 
   @Override
   public void start() throws Exception {
-    System.out.println("BotServerVerticle starting...");
+    log.info("BotServerVerticle starting...");
 
     //config check
     var tnbServer = config().getString("treeNewBee.server");
@@ -28,7 +31,7 @@ public class BotServerVerticle extends AbstractVerticle {
       throw new IllegalArgumentException("config: treeNewBee.port is empty!!!");
     }
     var tnbNickname = config().getString("treeNewBee.nickname", "3群转发Bot");
-    System.out.println("BotServerVerticle config check pass...");
+    log.info("BotServerVerticle config check pass...");
 
     List<ForwardBot> bots = ForwardBot.lookupAndInitAllBots(config(), vertx);
     bots.forEach(bot -> bot.registerOtherBots(bots));
@@ -47,7 +50,7 @@ public class BotServerVerticle extends AbstractVerticle {
 
         //第一次连接后会发一堆历史消息，现在没区分，不友好 所以等5秒后再开始处理
         vertx.setTimer(5000L, tid -> {
-          System.out.println("BotServerVerticle start to receive TreeNewBee's messages...");
+          log.info("BotServerVerticle start to receive TreeNewBee's messages...");
           //来自 TreeNewBee 的消息转发各个平台Bot
           socket.handler(RecordParser.newDelimited("\r\n", buffer -> {
             String json = buffer.toString();
@@ -64,19 +67,19 @@ public class BotServerVerticle extends AbstractVerticle {
                 });
               }
             } catch (Exception e) {
-              System.out.println("Parsing error when receive: " + json);
+              log.error("Parsing error when receive: " + json + ":" + e.getMessage());
             }
           }).maxRecordSize(1024 * 64));
         });
 
         //Socket断开重连
         socket.closeHandler(v -> vertx.setTimer(5000L, tid -> {
-          System.out.println("TreeNewBee socket is closed, trying to reconnect...");
+          log.warn("TreeNewBee socket is closed, trying to reconnect...");
           connectTreeNewBee(tnbServer, tnbPort, nickname, bots);
         }));
         return Future.succeededFuture();
       })
-      .onSuccess(v -> System.out.println("Connected to TreeNewBee server: " + tnbServer + ":" + tnbPort))
-      .onFailure(e -> System.out.println("Connect to TreeNewBee server: " + tnbServer + ":" + tnbPort + " failed: " + e.getMessage()));
+      .onSuccess(v -> log.info("Connected to TreeNewBee server: " + tnbServer + ":" + tnbPort))
+      .onFailure(e -> log.error("Connect to TreeNewBee server: " + tnbServer + ":" + tnbPort + " failed: " + e.getMessage(), e));
   }
 }

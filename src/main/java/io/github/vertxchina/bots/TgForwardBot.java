@@ -12,6 +12,8 @@ import com.pengrad.telegrambot.request.SendMessage;
 import com.pengrad.telegrambot.response.GetFileResponse;
 import io.netty.util.internal.StringUtil;
 import io.vertx.core.Vertx;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
@@ -25,6 +27,7 @@ import java.util.regex.Pattern;
  */
 public class TgForwardBot implements ForwardBot {
   private final AtomicReference<NetSocket> socket = new AtomicReference<>();
+  Logger log = LoggerFactory.getLogger(TgForwardBot.class);
   private TelegramBot bot;
   private Long tgChatId;
   private PictureBed pictureBed;
@@ -83,7 +86,7 @@ public class TgForwardBot implements ForwardBot {
             //TODO
             msgText = "[发送了一张GIF瑟瑟动图]";
           } else {
-            System.out.println("==>暂不支持的消息: " + new Gson().toJson(message));
+            log.info("==>暂不支持的消息: " + new Gson().toJson(message));
             msgText = null;
           }
           if (msgText != null) {
@@ -134,13 +137,13 @@ public class TgForwardBot implements ForwardBot {
 
       var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
-        System.out.println("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+        log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
       }
     }else{
       message += escapeUrl(messageJson.getString("message",""));
       var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
-        System.out.println("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+        log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
       }
     }
   }

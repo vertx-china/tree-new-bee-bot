@@ -3,6 +3,9 @@ package io.github.vertxchina;
 /**
  * @author Leibniz on 2022/03/6 11:41 AM
  */
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.JarURLConnection;
@@ -14,6 +17,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class ClassUtil {
+  static Logger log = LoggerFactory.getLogger(ClassUtil.class);
 
   /*
    * 获取指定接口的所有实现实例
@@ -63,7 +67,7 @@ public class ClassUtil {
     String path = packageName.replace(".", "/");
     Enumeration<URL> enumeration = classLoader.getResources(path);
     List<String> classNames = getClassNames(enumeration, packageName);
-    System.out.println(classNames);
+    log.info(classNames);
 
     ArrayList<Class<T>> classes = new ArrayList<>();
     for (int i = 0; i < classNames.size(); i++) {
@@ -80,16 +84,16 @@ public class ClassUtil {
       if (url != null) {
         String type = url.getProtocol();
         if (type.equals("file")) {
-          System.out.println("type : file");
+          log.info("type : file");
           String fileSearchPath = url.getPath();
           if(fileSearchPath.contains("META-INF")) {
-            System.out.println("continue + " + fileSearchPath);
+            log.info("continue + " + fileSearchPath);
             continue;
           }
           classNames = getClassNameByFile(fileSearchPath, packageName);
         } else if (type.equals("jar")) {
           try {
-            System.out.println("type : jar");
+            log.info("type : jar");
             JarURLConnection jarURLConnection = (JarURLConnection)url.openConnection();
             JarFile jarFile = jarURLConnection.getJarFile();
             classNames = getClassNameByJar(jarFile, packageName);
@@ -97,7 +101,7 @@ public class ClassUtil {
             e.printStackTrace();
           }
         } else {
-          System.out.println("type : none");
+          log.info("type : none");
         }
       }
     }

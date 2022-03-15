@@ -4,14 +4,17 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 
 public class MainLauncher extends AbstractVerticle {
+  Logger log = LoggerFactory.getLogger(MainLauncher.class);
   @Override
   public void start(Promise<Void> startPromise) {
-    System.out.println("Starting deploy verticle(s)...");
+    log.info("Starting deploy verticle(s)...");
     vertx.deployVerticle(BotServerVerticle.class.getName(), new DeploymentOptions().setConfig(config()))
-      .onSuccess(id -> System.out.println("deploy " + BotServerVerticle.class.getSimpleName() + " success!"))
+      .onSuccess(id -> log.info("deploy " + BotServerVerticle.class.getSimpleName() + " success!"))
       .onFailure(startPromise::fail);
   }
 
