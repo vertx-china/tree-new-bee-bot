@@ -69,13 +69,13 @@ public class TgForwardBot implements ForwardBot {
             sendToOtherBots(nickName, message.text());
           } else if (message.sticker() != null) {
             String fileId = message.sticker().fileId();
-            sendImageFromFileId(message, nickName, fileId, "瑟瑟表情","image/webp");
+            sendImageFromFileId(message, fileId, TgMsgType.STICKER);
           } else if (message.photo() != null) {
             String fileId = message.photo()[message.photo().length - 1].fileId();
-            sendImageFromFileId(message, nickName, fileId, "瑟图", "image/jpg");
+            sendImageFromFileId(message, fileId, TgMsgType.PHOTO);
           } else if (message.animation() != null) {
             String fileId = message.animation().fileId();
-            sendImageFromFileId(message, nickName, fileId, "瑟瑟动图", message.animation().mimeType());
+            sendImageFromFileId(message, fileId, TgMsgType.ANIMATION);
           } else {
             log.info("==>暂不支持的消息: " + new Gson().toJson(message));
           }
@@ -85,29 +85,48 @@ public class TgForwardBot implements ForwardBot {
     });
   }
 
-  private void sendImageFromFileId(Message message, String nickName, String fileId, String picType, String mimeType) {
+  private void sendImageFromFileId(Message message, String fileId, TgMsgType type) {
+    String nickName = message.from().lastName() + " " + message.from().firstName();
     String caption = Optional.ofNullable(message.caption()).orElse("");
     try {
       GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
       byte[] photoBytes = bot.getFileContent(getFileResponse.file());
       Object msgContent;
       if (photoBytes.length < base64Threshold) {
-        msgContent = new JsonObject().put("type", "image").put("base64", "data:" + mimeType + ";base64," + new String(Base64.getEncoder().encode(photoBytes)));
+        msgContent = new JsonObject()
+          .put("type", type.tnbMsgType)
+          .put("base64", "data:" + type.mimeType + ";base64," + new String(Base64.getEncoder().encode(photoBytes)));
       } else {
         msgContent = pictureBed.upload(photoBytes);
       }
       if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
         sendToTnb(nickName, msgContent);
       } else {
-        sendToTnb(nickName, caption + " [发送了一张" + picType + ",见下条消息]");
+        sendToTnb(nickName, caption + " [发送了一张" + type.chineseName + ",见下条消息]");
         sendToTnb(nickName, msgContent);
       }
       sendToOtherBots(nickName, msgContent);
     } catch (Exception e) {
-      String fallbackMsg = caption + " [发送了一张" + picType + ",暂不支持转发]";
+      String fallbackMsg = caption + " [发送了一张" + type.chineseName + ",暂不支持转发]";
       sendToTnb(nickName, fallbackMsg);
       sendToOtherBots(nickName, fallbackMsg);
-      log.error("发送TG的" + picType + "时出错:" + e.getMessage(), e);
+      log.error("发送TG的" + type.tnbMsgType + "时出错:" + e.getMessage(), e);
+    }
+  }
+
+  private enum TgMsgType {
+    PHOTO("瑟图", "image/jpg", "image"),
+    STICKER("瑟瑟表情", "image/webp", "image"),
+    ANIMATION("瑟瑟动图", "video/mp4", "video");
+
+    final String chineseName;
+    final String mimeType;
+    final String tnbMsgType;
+
+    TgMsgType(String chineseName, String mimeType, String tnbMsgType) {
+      this.chineseName = chineseName;
+      this.mimeType = mimeType;
+      this.tnbMsgType = tnbMsgType;
     }
   }
 
