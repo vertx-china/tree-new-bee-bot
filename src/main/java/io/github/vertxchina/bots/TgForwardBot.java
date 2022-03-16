@@ -1,5 +1,6 @@
 package io.github.vertxchina.bots;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
@@ -9,6 +10,7 @@ import com.pengrad.telegrambot.model.User;
 import com.pengrad.telegrambot.model.request.ParseMode;
 import com.pengrad.telegrambot.request.GetFile;
 import com.pengrad.telegrambot.request.SendMessage;
+import com.pengrad.telegrambot.request.SendPhoto;
 import com.pengrad.telegrambot.response.GetFileResponse;
 import io.netty.util.internal.StringUtil;
 import io.vertx.core.Vertx;
@@ -17,9 +19,12 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -122,25 +127,35 @@ public class TgForwardBot implements ForwardBot {
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
     String message = "";//要被发送给电报的消息string
-    var user = messageJson.getString("nickname","匿名用户");
-    if(!user.equals(previousUser)){
+    var user = messageJson.getString("nickname", "匿名用户");
+    if (!user.equals(previousUser)) {
       previousUser = user;
-      message +=msgSource + "的 *" + user + "* 说：\n";
+      message += msgSource + "的 *" + user + "* 说：\n";
     }
 
-    if(messageJson.getValue("message") instanceof JsonObject jsonObject){
+    if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
+      if (imgTypes.contains(jsonObject.getString("type")) &&
+        jsonObject.getValue("base64") instanceof String imgBase64) {
+        sendImage(imgBase64, message);
+        return;
+      }
 
       //有content就用content，没有就找url，还没有就用空字符串
       message += jsonObject.containsKey("content") ?
-          escapeUrl(jsonObject.getString("content","")):
-          escapeUrl(jsonObject.getString("url",""));
+        escapeUrl(jsonObject.getString("content", "")) :
+        escapeUrl(jsonObject.getString("url", ""));
 
       var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
         log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
       }
-    }else{
-      message += escapeUrl(messageJson.getString("message",""));
+    } else {
+      String messageText = messageJson.getString("message", "");
+      if (imgBase64Pattern.matcher(messageText).find()) {
+        sendImage(messageText, message);
+        return;
+      }
+      message += escapeUrl(messageText);
       var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
       if (!response.isOk()) {
         log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
@@ -148,13 +163,28 @@ public class TgForwardBot implements ForwardBot {
     }
   }
 
+  void sendImage(String imgBase64, String caption) {
+    Matcher matcher = imgBase64Pattern.matcher(imgBase64);
+    if (matcher.find()) {
+      imgBase64 = matcher.group(2);
+    }
+    byte[] imgBytes = Base64.getDecoder().decode(imgBase64);
+    var response = bot.execute(new SendPhoto(tgChatId, imgBytes).caption(caption));
+    if (!response.isOk()) {
+      log.warn("Send photo with caption '" + caption + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+    }
+  }
+
+  private static final Set<String> imgTypes = ImmutableSet.of("image", "img", "1");
+  private static final Pattern imgBase64Pattern = Pattern.compile("^data:image/(png|jpeg|jpg|gif);base64,(.+)");
   private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
   private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jepg|gif)");
 
   public static String escapeUrl(String message) {
     return urlPattern.matcher(message).replaceAll("[$0]()");
   }
-  public static String escapeImage(String message){
+
+  public static String escapeImage(String message) {
     return imgPattern.matcher(message).replaceAll("![$0]($0)");
   }
 }
