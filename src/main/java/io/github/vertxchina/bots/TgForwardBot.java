@@ -169,7 +169,7 @@ public class TgForwardBot implements ForwardBot {
       imgBase64 = matcher.group(2);
     }
     byte[] imgBytes = Base64.getDecoder().decode(imgBase64);
-    var response = bot.execute(new SendPhoto(tgChatId, imgBytes).caption(caption));
+    var response = bot.execute(new SendPhoto(tgChatId, imgBytes).caption(caption).parseMode(ParseMode.Markdown));
     if (!response.isOk()) {
       log.warn("Send photo with caption '" + caption + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
     }
