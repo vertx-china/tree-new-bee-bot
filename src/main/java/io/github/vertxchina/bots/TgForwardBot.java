@@ -62,7 +62,7 @@ public class TgForwardBot implements ForwardBot {
         if (message != null) {
           User from = message.from();
           String nickName = from.lastName() + " " + from.firstName();
-          final String msgText;
+          final Object msgText;
           String picUrl = null;
           if (message.text() != null) {
             msgText = message.text();
@@ -70,18 +70,22 @@ public class TgForwardBot implements ForwardBot {
             //TODO
             msgText = "[发送了一个表情,暂不支持转发]";
           } else if (message.photo() != null) {
-            String tmpText;
+            Object tmpText;
             String caption = Optional.ofNullable(message.caption()).orElse("");
             try {
               String fileId = message.photo()[message.photo().length - 1].fileId();
               GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
               byte[] photoBytes = bot.getFileContent(getFileResponse.file());
-              String tmpPicUrl = pictureBed.upload(photoBytes);
-              if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
-                tmpText = tmpPicUrl;
+              if (photoBytes.length < base64Threshold) {
+                tmpText = new JsonObject().put("type", "image").put("base64", new String(Base64.getEncoder().encode(photoBytes)));
               } else {
-                tmpText = caption + " [发送了一张瑟图,见下条消息]";
-                picUrl = tmpPicUrl;
+                String tmpPicUrl = pictureBed.upload(photoBytes);
+                if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
+                  tmpText = tmpPicUrl;
+                } else {
+                  tmpText = caption + " [发送了一张瑟图,见下条消息]";
+                  picUrl = tmpPicUrl;
+                }
               }
             } catch (Exception e) {
               tmpText = caption + " [发送了一张瑟图,暂不支持转发]";
@@ -175,6 +179,7 @@ public class TgForwardBot implements ForwardBot {
     }
   }
 
+  private static final int base64Threshold = 64 * 1024 / 4 * 3;
   private static final Set<String> imgTypes = ImmutableSet.of("image", "img", "1");
   private static final Pattern imgBase64Pattern = Pattern.compile("^data:image/(png|jpeg|jpg|gif);base64,(.+)");
   private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
