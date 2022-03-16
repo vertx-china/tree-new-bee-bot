@@ -69,15 +69,13 @@ public class TgForwardBot implements ForwardBot {
             sendToOtherBots(nickName, message.text());
           } else if (message.sticker() != null) {
             String fileId = message.sticker().fileId();
-            sendImageFromFileId(message, nickName, fileId, "瑟瑟表情");
+            sendImageFromFileId(message, nickName, fileId, "瑟瑟表情","image/webp");
           } else if (message.photo() != null) {
             String fileId = message.photo()[message.photo().length - 1].fileId();
-            sendImageFromFileId(message, nickName, fileId, "瑟图");
+            sendImageFromFileId(message, nickName, fileId, "瑟图", "image/jpg");
           } else if (message.animation() != null) {
-            //TODO
-            String gifMsg = "[发送了一张GIF瑟瑟动图]";
-            sendToTnb(nickName, gifMsg);
-            sendToOtherBots(nickName, gifMsg);
+            String fileId = message.animation().fileId();
+            sendImageFromFileId(message, nickName, fileId, "瑟瑟动图", message.animation().mimeType());
           } else {
             log.info("==>暂不支持的消息: " + new Gson().toJson(message));
           }
@@ -87,14 +85,14 @@ public class TgForwardBot implements ForwardBot {
     });
   }
 
-  private void sendImageFromFileId(Message message, String nickName, String fileId, String picType) {
+  private void sendImageFromFileId(Message message, String nickName, String fileId, String picType, String mimeType) {
     String caption = Optional.ofNullable(message.caption()).orElse("");
     try {
       GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
       byte[] photoBytes = bot.getFileContent(getFileResponse.file());
       Object msgContent;
       if (photoBytes.length < base64Threshold) {
-        msgContent = new JsonObject().put("type", "image").put("base64", new String(Base64.getEncoder().encode(photoBytes)));
+        msgContent = new JsonObject().put("type", "image").put("base64", "data:" + mimeType + ";base64," + new String(Base64.getEncoder().encode(photoBytes)));
       } else {
         msgContent = pictureBed.upload(photoBytes);
       }
