@@ -36,6 +36,7 @@ public class TgForwardBot implements ForwardBot {
   private TelegramBot bot;
   private Long tgChatId;
   private PictureBed pictureBed;
+  private List<ForwardBot> allBots;
 
   @Override
   public void init(JsonObject config, Vertx vertx) throws IllegalArgumentException {
@@ -55,6 +56,7 @@ public class TgForwardBot implements ForwardBot {
 
   @Override
   public void registerOtherBots(List<ForwardBot> bots) {
+    this.allBots = bots;
     // telegram -> treeNewBee
     this.bot.setUpdatesListener(updates -> {
       for (Update update : updates) {
@@ -62,61 +64,68 @@ public class TgForwardBot implements ForwardBot {
         if (message != null) {
           User from = message.from();
           String nickName = from.lastName() + " " + from.firstName();
-          final Object msgText;
-          String picUrl = null;
           if (message.text() != null) {
-            msgText = message.text();
+            sendToTnb(nickName, message.text());
+            sendToOtherBots(nickName, message.text());
           } else if (message.sticker() != null) {
-            //TODO
-            msgText = "[发送了一个表情,暂不支持转发]";
+            String fileId = message.sticker().fileId();
+            sendImageFromFileId(message, nickName, fileId, "瑟瑟表情");
           } else if (message.photo() != null) {
-            Object tmpText;
-            String caption = Optional.ofNullable(message.caption()).orElse("");
-            try {
-              String fileId = message.photo()[message.photo().length - 1].fileId();
-              GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
-              byte[] photoBytes = bot.getFileContent(getFileResponse.file());
-              if (photoBytes.length < base64Threshold) {
-                tmpText = new JsonObject().put("type", "image").put("base64", new String(Base64.getEncoder().encode(photoBytes)));
-              } else {
-                String tmpPicUrl = pictureBed.upload(photoBytes);
-                if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
-                  tmpText = tmpPicUrl;
-                } else {
-                  tmpText = caption + " [发送了一张瑟图,见下条消息]";
-                  picUrl = tmpPicUrl;
-                }
-              }
-            } catch (Exception e) {
-              tmpText = caption + " [发送了一张瑟图,暂不支持转发]";
-            }
-            msgText = tmpText;
+            String fileId = message.photo()[message.photo().length - 1].fileId();
+            sendImageFromFileId(message, nickName, fileId, "瑟图");
           } else if (message.animation() != null) {
             //TODO
-            msgText = "[发送了一张GIF瑟瑟动图]";
+            String gifMsg = "[发送了一张GIF瑟瑟动图]";
+            sendToTnb(nickName, gifMsg);
+            sendToOtherBots(nickName, gifMsg);
           } else {
             log.info("==>暂不支持的消息: " + new Gson().toJson(message));
-            msgText = null;
-          }
-          if (msgText != null) {
-            socket.get().write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", msgText) + "\r\n");
-            if (picUrl != null) {
-              //目前 TreeNewBee 只支持 纯 图片url 的图片消息
-              socket.get().write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", picUrl) + "\r\n");
-            }
-            bots.forEach(bot -> {
-              if (bot != this) {
-                try {
-                  bot.sendMessage(new JsonObject().put("nickname", nickName).put("message", msgText), "Tg");
-                } catch (Exception e) {
-                  e.printStackTrace();
-                }
-              }
-            });
           }
         }
       }
       return UpdatesListener.CONFIRMED_UPDATES_ALL;
+    });
+  }
+
+  private void sendImageFromFileId(Message message, String nickName, String fileId, String picType) {
+    String caption = Optional.ofNullable(message.caption()).orElse("");
+    try {
+      GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
+      byte[] photoBytes = bot.getFileContent(getFileResponse.file());
+      Object msgContent;
+      if (photoBytes.length < base64Threshold) {
+        msgContent = new JsonObject().put("type", "image").put("base64", new String(Base64.getEncoder().encode(photoBytes)));
+      } else {
+        msgContent = pictureBed.upload(photoBytes);
+      }
+      if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
+        sendToTnb(nickName, msgContent);
+      } else {
+        sendToTnb(nickName, caption + " [发送了一张" + picType + ",见下条消息]");
+        sendToTnb(nickName, msgContent);
+      }
+      sendToOtherBots(nickName, msgContent);
+    } catch (Exception e) {
+      String fallbackMsg = caption + " [发送了一张" + picType + ",暂不支持转发]";
+      sendToTnb(nickName, fallbackMsg);
+      sendToOtherBots(nickName, fallbackMsg);
+      log.error("发送TG的" + picType + "时出错:" + e.getMessage(), e);
+    }
+  }
+
+  private void sendToTnb(String nickName, Object messageContent) {
+    socket.get().write(new JsonObject().put("nickname", "Tg的 " + nickName).put("message", messageContent) + "\r\n");
+  }
+
+  private void sendToOtherBots(String nickName, Object messageContent) {
+    this.allBots.forEach(bot -> {
+      if (bot != this) {
+        try {
+          bot.sendMessage(new JsonObject().put("nickname", nickName).put("message", messageContent), "Tg");
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
     });
   }
 
