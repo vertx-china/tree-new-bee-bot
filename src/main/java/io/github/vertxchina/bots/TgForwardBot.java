@@ -7,12 +7,14 @@ import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
-import com.pengrad.telegrambot.model.request.ParseMode;
+import com.pengrad.telegrambot.request.BaseRequest;
 import com.pengrad.telegrambot.request.GetFile;
 import com.pengrad.telegrambot.request.SendMessage;
 import com.pengrad.telegrambot.request.SendPhoto;
+import com.pengrad.telegrambot.response.BaseResponse;
 import com.pengrad.telegrambot.response.GetFileResponse;
 import io.netty.util.internal.StringUtil;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -37,9 +39,11 @@ public class TgForwardBot implements ForwardBot {
   private Long tgChatId;
   private PictureBed pictureBed;
   private List<ForwardBot> allBots;
+  private Vertx vertx;
 
   @Override
   public void init(JsonObject config, Vertx vertx) throws IllegalArgumentException {
+    this.vertx = vertx;
     //config check
     String tgBotToken = config.getString("telegram.botToken");
     if (StringUtil.isNullOrEmpty(tgBotToken)) {
@@ -91,21 +95,24 @@ public class TgForwardBot implements ForwardBot {
     try {
       GetFileResponse getFileResponse = bot.execute(new GetFile(fileId));
       byte[] photoBytes = bot.getFileContent(getFileResponse.file());
-      Object msgContent;
+      Future<?> msgContentFuture;
       if (photoBytes.length < base64Threshold) {
-        msgContent = new JsonObject()
+        msgContentFuture = Future.succeededFuture(new JsonObject()
           .put("type", type.tnbMsgType)
-          .put("base64", "data:" + type.mimeType + ";base64," + new String(Base64.getEncoder().encode(photoBytes)));
+          .put("base64", "data:" + type.mimeType + ";base64," + new String(Base64.getEncoder().encode(photoBytes))));
       } else {
-        msgContent = pictureBed.upload(photoBytes);
+        msgContentFuture = pictureBed.upload(photoBytes);
       }
-      if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
-        sendToTnb(nickName, msgContent);
-      } else {
-        sendToTnb(nickName, caption + " [发送了一张" + type.chineseName + ",见下条消息]");
-        sendToTnb(nickName, msgContent);
-      }
-      sendToOtherBots(nickName, msgContent);
+      msgContentFuture.onSuccess(msgContent -> {
+        if (StringUtil.isNullOrEmpty(message.caption())) { //没有附言,直接发
+          sendToTnb(nickName, msgContent);
+        } else {
+          sendToTnb(nickName, caption + " [发送了一张" + type.chineseName + ",见下条消息]");
+          sendToTnb(nickName, msgContent);
+        }
+        sendToOtherBots(nickName, msgContent);
+      }).onFailure(e ->
+        log.error("上传图床失败:" + e.getMessage(), e));
     } catch (Exception e) {
       String fallbackMsg = caption + " [发送了一张" + type.chineseName + ",暂不支持转发]";
       sendToTnb(nickName, fallbackMsg);
@@ -155,12 +162,12 @@ public class TgForwardBot implements ForwardBot {
   }
 
   @Override
-  public void sendMessage(JsonObject messageJson, String msgSource) throws Exception {
+  public void sendMessage(JsonObject messageJson, String msgSource) {
     String message = "";//要被发送给电报的消息string
     var user = messageJson.getString("nickname", "匿名用户");
     if (!user.equals(previousUser)) {
       previousUser = user;
-      message += msgSource + "的 *" + user + "* 说：\n";
+      message += msgSource + "的 " + user + " 说：\n";
     }
 
     if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
@@ -172,24 +179,18 @@ public class TgForwardBot implements ForwardBot {
 
       //有content就用content，没有就找url，还没有就用空字符串
       message += jsonObject.containsKey("content") ?
-        escapeUrl(jsonObject.getString("content", "")) :
-        escapeUrl(jsonObject.getString("url", ""));
+        jsonObject.getString("content", "") :
+        jsonObject.getString("url", "");
 
-      var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
-      if (!response.isOk()) {
-        log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
-      }
+      sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
     } else {
       String messageText = messageJson.getString("message", "");
       if (imgBase64Pattern.matcher(messageText).find()) {
         sendImage(messageText, message);
         return;
       }
-      message += escapeUrl(messageText);
-      var response = bot.execute(new SendMessage(tgChatId, message).parseMode(ParseMode.Markdown));
-      if (!response.isOk()) {
-        log.warn("Send '" + message + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
-      }
+      message += messageText;
+      sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
     }
   }
 
@@ -199,17 +200,28 @@ public class TgForwardBot implements ForwardBot {
       imgBase64 = matcher.group(2);
     }
     byte[] imgBytes = Base64.getDecoder().decode(imgBase64);
-    var response = bot.execute(new SendPhoto(tgChatId, imgBytes).caption(caption).parseMode(ParseMode.Markdown));
-    if (!response.isOk()) {
-      log.warn("Send photo with caption '" + caption + "' to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
-    }
+    sendToTgAsync(new SendPhoto(tgChatId, imgBytes).caption(caption), "photo with caption '" + caption + "'");
+  }
+
+  private <T extends BaseRequest<T, R>, R extends BaseResponse> void sendToTgAsync(BaseRequest<T, R> request, String content) {
+    vertx.executeBlocking(promise -> {
+      var response = bot.execute(request);
+      if (!response.isOk()) {
+        log.warn("Send " + content + " to telegram but response with code:" + response.errorCode() + "and message:" + response.description());
+      }
+    }, false, res -> {
+      if (!res.succeeded()) {
+        log.error(res.cause().getMessage(), res.cause());
+      }
+    });
   }
 
   private static final int base64Threshold = 64 * 1024 / 4 * 3;
   private static final Set<String> imgTypes = ImmutableSet.of("image", "img", "1");
   private static final Pattern imgBase64Pattern = Pattern.compile("^data:image/(png|jpeg|jpg|gif);base64,(.+)");
-  private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
-  private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jepg|gif)");
+
+/*  private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
+  private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jpeg|gif)");
 
   public static String escapeUrl(String message) {
     return urlPattern.matcher(message).replaceAll("[$0]()");
@@ -217,5 +229,5 @@ public class TgForwardBot implements ForwardBot {
 
   public static String escapeImage(String message) {
     return imgPattern.matcher(message).replaceAll("![$0]($0)");
-  }
+  }*/
 }

@@ -1,5 +1,6 @@
 package io.github.vertxchina.bots;
 
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.impl.logging.Logger;
@@ -27,29 +28,23 @@ public class TelegraphPictureBed implements PictureBed {
   }
 
   @Override
-  public String upload(byte[] picBytes) throws IOException {
-    MultipartForm file = MultipartForm.create().binaryFileUpload("file", "tmpPic.jpg", Buffer.buffer().appendBytes(picBytes), "application/octet-stream");
-    var response = webClient.post(443, SERVER, UPLOAD_URI)
+  public Future<String> upload(byte[] picBytes) throws IOException {
+    Buffer buffer = Buffer.buffer().appendBytes(picBytes);
+    MultipartForm file = MultipartForm.create()
+      .binaryFileUpload("file", "tmpPic.jpg", buffer, "application/octet-stream");
+    return webClient.post(443, SERVER, UPLOAD_URI)
       .ssl(true)
-      .sendMultipartForm(file);
-
-    //FIXME 错误姿势，但现在调用者需要阻塞等待它
-    while (!response.isComplete()) {
-      try {
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
-
-    JsonArray jsonObject = response.result().bodyAsJsonArray();
-    log.debug(jsonObject.encodePrettily());
-    return "https://" + SERVER + jsonObject.getJsonObject(0).getString("src");
+      .sendMultipartForm(file)
+      .map(resp -> {
+        JsonArray jsonObject = resp.bodyAsJsonArray();
+        String url = "https://" + SERVER + jsonObject.getJsonObject(0).getString("src");
+        log.info("上传图片到Telegraph图床成功,地址:"+ url);
+        return url;
+      });
   }
 
   @Override
-  public String upload(InputStream is) throws IOException {
-    //TODO
-    return null;
+  public Future<String> upload(InputStream is) throws IOException {
+    return upload(is.readAllBytes());
   }
 }
