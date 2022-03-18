@@ -20,6 +20,8 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 
 import java.util.Base64;
 import java.util.List;
@@ -40,10 +42,12 @@ public class TgForwardBot implements ForwardBot {
   private PictureBed pictureBed;
   private List<ForwardBot> allBots;
   private Vertx vertx;
+  private WebClient webClient;
 
   @Override
   public void init(JsonObject config, Vertx vertx) throws IllegalArgumentException {
     this.vertx = vertx;
+    this.webClient = WebClient.create(vertx, new WebClientOptions().setMaxPoolSize(3));
     //config check
     String tgBotToken = config.getString("telegram.botToken");
     if (StringUtil.isNullOrEmpty(tgBotToken)) {
@@ -153,7 +157,7 @@ public class TgForwardBot implements ForwardBot {
     });
   }
 
-  String previousUser = "";
+//  String previousUser = ""; //由于其他tg用户会发言,这样会造成不连贯
 
   @Override
   public void updateTnbSocket(NetSocket socket) {
@@ -163,44 +167,55 @@ public class TgForwardBot implements ForwardBot {
 
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) {
-    String message = "";//要被发送给电报的消息string
     var user = messageJson.getString("nickname", "匿名用户");
-    if (!user.equals(previousUser)) {
-      previousUser = user;
-      message += msgSource + "的 " + user + " 说：\n";
-    }
+    String message = msgSource + "的 " + user + " 说：\n";//要被发送给电报的消息string
 
     if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
-      if (imgTypes.contains(jsonObject.getString("type")) &&
-        jsonObject.getValue("base64") instanceof String imgBase64) {
-        sendImage(imgBase64, message);
-        return;
-      }
-
       //有content就用content，没有就找url，还没有就用空字符串
-      message += jsonObject.containsKey("content") ?
+      var msgContent = jsonObject.containsKey("content") ?
         jsonObject.getString("content", "") :
         jsonObject.getString("url", "");
-
-      sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
+      if (imgUrlPattern.matcher(msgContent.trim()).matches()) { //消息只有一个图片url
+        sendImageToTgByUrl(msgContent.trim(), message);
+      } else if (imgTypes.contains(jsonObject.getString("type")) &&
+        jsonObject.getValue("base64") instanceof String imgBase64) {
+        sendImageToTgByBase64(imgBase64, message);
+      } else {
+        message += msgContent;
+        sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
+      }
     } else {
       String messageText = messageJson.getString("message", "");
-      if (imgBase64Pattern.matcher(messageText).find()) {
-        sendImage(messageText, message);
-        return;
+      if (imgUrlPattern.matcher(messageText.trim()).matches()) { //消息只有一个图片url
+        sendImageToTgByUrl(messageText.trim(), message);
+      } else if (imgBase64Pattern.matcher(messageText).find()) {
+        sendImageToTgByBase64(messageText, message);
+      } else {
+        message += messageText;
+        sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
       }
-      message += messageText;
-      sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
     }
   }
 
-  void sendImage(String imgBase64, String caption) {
+  void sendImageToTgByBase64(String imgBase64, String caption) {
     Matcher matcher = imgBase64Pattern.matcher(imgBase64);
     if (matcher.find()) {
       imgBase64 = matcher.group(2);
     }
     byte[] imgBytes = Base64.getDecoder().decode(imgBase64);
     sendToTgAsync(new SendPhoto(tgChatId, imgBytes).caption(caption), "photo with caption '" + caption + "'");
+  }
+
+  void sendImageToTgByUrl(String imgUrl, String caption) {
+    webClient.getAbs(imgUrl)
+      .ssl(imgUrl.startsWith("https://"))
+      .send()
+      .onSuccess(resp -> sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes()).caption(caption), "photo with caption '" + caption + "'"))
+      .onFailure(e -> {
+        log.error("请求图片Url(" + imgUrl + ")失败:" + e.getMessage(), e);
+        var message = caption + imgUrl;
+        sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
+      });
   }
 
   private <T extends BaseRequest<T, R>, R extends BaseResponse> void sendToTgAsync(BaseRequest<T, R> request, String content) {
@@ -220,14 +235,14 @@ public class TgForwardBot implements ForwardBot {
   private static final Set<String> imgTypes = ImmutableSet.of("image", "img", "1");
   private static final Pattern imgBase64Pattern = Pattern.compile("^data:image/(png|jpeg|jpg|gif);base64,(.+)");
 
-/*  private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
-  private static final Pattern imgPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jpeg|gif)");
+  private static final Pattern urlPattern = Pattern.compile("(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]");
+  private static final Pattern imgUrlPattern = Pattern.compile("(https?)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](png|jpg|jpeg|gif)");
 
-  public static String escapeUrl(String message) {
+  public static String escapeUrlForMarkdown(String message) {
     return urlPattern.matcher(message).replaceAll("[$0]()");
   }
 
-  public static String escapeImage(String message) {
-    return imgPattern.matcher(message).replaceAll("![$0]($0)");
-  }*/
+  public static String escapeImageForMarkdown(String message) {
+    return imgUrlPattern.matcher(message).replaceAll("![$0]($0)");
+  }
 }
