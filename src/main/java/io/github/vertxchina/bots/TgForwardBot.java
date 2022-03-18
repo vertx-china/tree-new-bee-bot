@@ -7,26 +7,25 @@ import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
-import com.pengrad.telegrambot.request.BaseRequest;
-import com.pengrad.telegrambot.request.GetFile;
-import com.pengrad.telegrambot.request.SendMessage;
-import com.pengrad.telegrambot.request.SendPhoto;
+import com.pengrad.telegrambot.model.request.InputMedia;
+import com.pengrad.telegrambot.model.request.InputMediaPhoto;
+import com.pengrad.telegrambot.request.*;
 import com.pengrad.telegrambot.response.BaseResponse;
 import com.pengrad.telegrambot.response.GetFileResponse;
 import io.netty.util.internal.StringUtil;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
+import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -186,8 +185,8 @@ public class TgForwardBot implements ForwardBot {
       }
     } else {
       String messageText = messageJson.getString("message", "");
-      if (imgUrlPattern.matcher(messageText.trim()).matches()) { //消息只有一个图片url
-        sendImageToTgByUrl(messageText.trim(), message);
+      if (imgUrlPattern.matcher(messageText).find()) { //消息有图片url
+        sendImageToTgByUrl(messageText, message);
       } else if (imgBase64Pattern.matcher(messageText).find()) {
         sendImageToTgByBase64(messageText, message);
       } else {
@@ -206,14 +205,39 @@ public class TgForwardBot implements ForwardBot {
     sendToTgAsync(new SendPhoto(tgChatId, imgBytes).caption(caption), "photo with caption '" + caption + "'");
   }
 
-  void sendImageToTgByUrl(String imgUrl, String caption) {
-    webClient.getAbs(imgUrl)
-      .ssl(imgUrl.startsWith("https://"))
-      .send()
-      .onSuccess(resp -> sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes()).caption(caption + "[以上]"), "photo with caption '" + caption + "'"))
+  void sendImageToTgByUrl(String msgWithImgUrl, String caption) {
+    var matcher = imgUrlPattern.matcher(msgWithImgUrl);
+    List<String> imgUrlList = new ArrayList<>();
+    int findStart = 0;
+    while (matcher.find(findStart)) {
+      String imgUrl = matcher.group(0);
+      imgUrlList.add(imgUrl);
+      findStart = matcher.end();
+    }
+    var finalCaption = caption + imgUrlPattern.matcher(msgWithImgUrl).replaceAll(" ");
+    CompositeFuture.all(imgUrlList.stream()
+        .map(imgUrl -> (Future) webClient.getAbs(imgUrl)
+          .ssl(imgUrl.startsWith("https://"))
+          .send())
+        .toList())
+      .onSuccess(cf -> {
+        if (cf.list().size() == 1) {
+          HttpResponse<Buffer> resp = (HttpResponse<Buffer>) cf.list().get(0);
+          sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes())
+            .caption(finalCaption), "photo with caption '" + finalCaption + "'");
+        } else {
+          InputMedia[] media = new InputMedia[cf.list().size()];
+          for (int i = 0; i < cf.list().size(); i++) {
+            HttpResponse<Buffer> resp = (HttpResponse<Buffer>) cf.list().get(i);
+            media[i] = new InputMediaPhoto(resp.body().getBytes());
+          }
+          sendToTgAsync(new SendMediaGroup(tgChatId, media), "photo");
+          sendToTgAsync(new SendMessage(tgChatId, finalCaption), "message '" + finalCaption + "'");
+        }
+      })
       .onFailure(e -> {
-        log.error("请求图片Url(" + imgUrl + ")失败:" + e.getMessage(), e);
-        var message = caption + imgUrl;
+        log.error("获取消息的图片失败(" + msgWithImgUrl + "):" + e.getMessage(), e);
+        var message = caption + msgWithImgUrl;
         sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
       });
   }
