@@ -168,7 +168,7 @@ public class TgForwardBot implements ForwardBot {
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) {
     var user = messageJson.getString("nickname", "匿名用户");
-    String message = msgSource + "的 " + user + " 说：\n";//要被发送给电报的消息string
+    String message = msgSource + " " + user + "：\n";//要被发送给电报的消息string
 
     if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
       //有content就用content，没有就找url，还没有就用空字符串
@@ -210,7 +210,7 @@ public class TgForwardBot implements ForwardBot {
     webClient.getAbs(imgUrl)
       .ssl(imgUrl.startsWith("https://"))
       .send()
-      .onSuccess(resp -> sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes()).caption(caption), "photo with caption '" + caption + "'"))
+      .onSuccess(resp -> sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes()).caption(caption + "[以上]"), "photo with caption '" + caption + "'"))
       .onFailure(e -> {
         log.error("请求图片Url(" + imgUrl + ")失败:" + e.getMessage(), e);
         var message = caption + imgUrl;
