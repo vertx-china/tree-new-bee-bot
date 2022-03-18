@@ -168,7 +168,7 @@ public class TgForwardBot implements ForwardBot {
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) {
     var user = messageJson.getString("nickname", "匿名用户");
-    String message = " ——By " + msgSource + "'s " + user;//要被发送给电报的消息string
+    String message = "\n——By " + msgSource + "'s " + user;//要被发送给电报的消息string
 
     if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
       //有content就用content，没有就找url，还没有就用空字符串
