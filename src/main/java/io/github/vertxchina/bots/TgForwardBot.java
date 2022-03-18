@@ -8,6 +8,7 @@ import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
 import com.pengrad.telegrambot.model.request.InputMedia;
+import com.pengrad.telegrambot.model.request.InputMediaAnimation;
 import com.pengrad.telegrambot.model.request.InputMediaPhoto;
 import com.pengrad.telegrambot.request.*;
 import com.pengrad.telegrambot.response.BaseResponse;
@@ -167,20 +168,20 @@ public class TgForwardBot implements ForwardBot {
   @Override
   public void sendMessage(JsonObject messageJson, String msgSource) {
     var user = messageJson.getString("nickname", "匿名用户");
-    String message = msgSource + " " + user + "：\n";//要被发送给电报的消息string
+    String message = " ——By " + msgSource + "'s " + user;//要被发送给电报的消息string
 
     if (messageJson.getValue("message") instanceof JsonObject jsonObject) {
       //有content就用content，没有就找url，还没有就用空字符串
       var msgContent = jsonObject.containsKey("content") ?
         jsonObject.getString("content", "") :
         jsonObject.getString("url", "");
-      if (imgUrlPattern.matcher(msgContent.trim()).matches()) { //消息只有一个图片url
-        sendImageToTgByUrl(msgContent.trim(), message);
+      if (imgUrlPattern.matcher(msgContent).find()) { //消息有图片url
+        sendImageToTgByUrl(msgContent, message);
       } else if (imgTypes.contains(jsonObject.getString("type")) &&
         jsonObject.getValue("base64") instanceof String imgBase64) {
         sendImageToTgByBase64(imgBase64, message);
       } else {
-        message += msgContent;
+        message = msgContent + message;
         sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
       }
     } else {
@@ -190,7 +191,7 @@ public class TgForwardBot implements ForwardBot {
       } else if (imgBase64Pattern.matcher(messageText).find()) {
         sendImageToTgByBase64(messageText, message);
       } else {
-        message += messageText;
+        message = messageText + message;
         sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
       }
     }
@@ -214,7 +215,7 @@ public class TgForwardBot implements ForwardBot {
       imgUrlList.add(imgUrl);
       findStart = matcher.end();
     }
-    var finalCaption = caption + imgUrlPattern.matcher(msgWithImgUrl).replaceAll(" ");
+    var finalCaption = imgUrlPattern.matcher(msgWithImgUrl).replaceAll(" ") + caption;
     CompositeFuture.all(imgUrlList.stream()
         .map(imgUrl -> (Future) webClient.getAbs(imgUrl)
           .ssl(imgUrl.startsWith("https://"))
@@ -223,13 +224,22 @@ public class TgForwardBot implements ForwardBot {
       .onSuccess(cf -> {
         if (cf.list().size() == 1) {
           HttpResponse<Buffer> resp = (HttpResponse<Buffer>) cf.list().get(0);
-          sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes())
-            .caption(finalCaption), "photo with caption '" + finalCaption + "'");
+          if (isGifAnimation(resp.body())) {
+            sendToTgAsync(new SendAnimation(tgChatId, resp.body().getBytes())
+              .caption(finalCaption), "photo with caption '" + finalCaption + "'");
+          } else {
+            sendToTgAsync(new SendPhoto(tgChatId, resp.body().getBytes())
+              .caption(finalCaption), "photo with caption '" + finalCaption + "'");
+          }
         } else {
           InputMedia[] media = new InputMedia[cf.list().size()];
           for (int i = 0; i < cf.list().size(); i++) {
             HttpResponse<Buffer> resp = (HttpResponse<Buffer>) cf.list().get(i);
-            media[i] = new InputMediaPhoto(resp.body().getBytes());
+            if (isGifAnimation(resp.body())) {
+              media[i] = new InputMediaAnimation(resp.body().getBytes());
+            } else {
+              media[i] = new InputMediaPhoto(resp.body().getBytes());
+            }
           }
           sendToTgAsync(new SendMediaGroup(tgChatId, media), "photo");
           sendToTgAsync(new SendMessage(tgChatId, finalCaption), "message '" + finalCaption + "'");
@@ -240,6 +250,13 @@ public class TgForwardBot implements ForwardBot {
         var message = caption + msgWithImgUrl;
         sendToTgAsync(new SendMessage(tgChatId, message), "'" + message + "'");
       });
+  }
+
+  //GIF magic word : GIF89a
+  private boolean isGifAnimation(Buffer buffer) {
+    byte[] bytes = buffer.slice(0, 6).getBytes();
+    return bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' &&
+      bytes[3] == '8' && bytes[4] == '9' && bytes[5] == 'a';
   }
 
   private <T extends BaseRequest<T, R>, R extends BaseResponse> void sendToTgAsync(BaseRequest<T, R> request, String content) {
