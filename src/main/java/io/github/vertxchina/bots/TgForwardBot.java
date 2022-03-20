@@ -26,6 +26,12 @@ import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -255,8 +261,21 @@ public class TgForwardBot implements ForwardBot {
   //GIF magic word : GIF89a
   private boolean isGifAnimation(Buffer buffer) {
     byte[] bytes = buffer.slice(0, 6).getBytes();
-    return bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' &&
+    boolean isGif = bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' &&
       bytes[3] == '8' && bytes[4] == '9' && bytes[5] == 'a';
+    if (isGif) {
+      try (InputStream is = new ByteArrayInputStream(buffer.getBytes());
+           ImageInputStream iis = ImageIO.createImageInputStream(is)) {
+        ImageReader ir = ImageIO.getImageReadersBySuffix("GIF").next();
+        ir.setInput(iis);
+        return ir.getNumImages(true) > 1;
+      } catch (Exception e) {
+        log.error("解析GIF图片失败:" + e.getMessage(), e);
+        return false;
+      }
+    } else {
+      return false;
+    }
   }
 
   private <T extends BaseRequest<T, R>, R extends BaseResponse> void sendToTgAsync(BaseRequest<T, R> request, String content) {
