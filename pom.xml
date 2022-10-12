@@ -13,7 +13,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <vertx.version>4.2.5</vertx.version>
         <vertx.verticle>io.github.vertxchina.MainLauncher</vertx.verticle>
-        <kotlin.version>1.4.21</kotlin.version>
+        <kotlin.version>1.7.20</kotlin.version>
     </properties>
 
     <dependencyManagement>
